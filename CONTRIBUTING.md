@@ -1,4 +1,4 @@
-# Contributing to pi-msg-bridge
+# Contributing to pi-messenger-bridge
 
 Thank you for your interest in contributing! 🎉
 
@@ -6,8 +6,8 @@ Thank you for your interest in contributing! 🎉
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/tintinweb/pi-msg-bridge.git
-   cd pi-msg-bridge
+   git clone https://github.com/tintinweb/pi-messenger-bridge.git
+   cd pi-messenger-bridge
    ```
 
 2. **Install dependencies**
@@ -26,7 +26,7 @@ Thank you for your interest in contributing! 🎉
    export PI_TELEGRAM_TOKEN="your-test-bot-token"
    
    # Option A: Install in pi
-   pi install /path/to/pi-msg-bridge
+   pi install /path/to/pi-messenger-bridge
    pi
    /msg-bridge connect
    

@@ -1,8 +1,12 @@
-# pi-msg-bridge
+# pi-messenger-bridge
 
 Bridge common messengers (Telegram, WhatsApp, Slack, Discord) into pi.
 
 Remote users can interact with your pi coding agent via their messenger app.
+
+<img width="887" height="656" alt="image" src="https://github.com/user-attachments/assets/d42a41e5-e7d5-420b-be8e-f2191facb190" />
+
+https://github.com/user-attachments/assets/cd64360e-e8cd-4820-a67f-bd127c5d6035
 
 ## Features
 
@@ -22,7 +26,7 @@ Remote users can interact with your pi coding agent via their messenger app.
 ### 1. Install
 
 ```bash
-pi install npm:pi-msg-bridge
+pi install npm:pi-messenger-bridge
 ```
 
 ### 2. Configure Transports
