@@ -195,18 +195,24 @@ export default function (pi: ExtensionAPI): void {
         messageId: msg.messageId,
       };
 
-      const { body, interrupt } = parseRemoteMessengerBody(msg.content);
+      const { body, mode } = parseRemoteMessengerBody(msg.content);
       const taggedMessage = `[📱 @${msg.username} via ${msg.transport}]: ${body}`;
 
       void (async () => {
         try {
-          if (interrupt && !ctx.isIdle()) {
+          if (mode === "interrupt" && !ctx.isIdle()) {
             ctx.abort();
             await waitUntilAgentIdle(() => ctx.isIdle());
           }
-          const sendOpts = !ctx.isIdle()
-            ? { deliverAs: "followUp" as const }
-            : undefined;
+
+          let sendOpts: { deliverAs: "followUp" | "steer" } | undefined;
+          if (!ctx.isIdle()) {
+            if (mode === "steer") {
+              sendOpts = { deliverAs: "steer" };
+            } else if (mode === "queue") {
+              sendOpts = { deliverAs: "followUp" };
+            }
+          }
           pi.sendUserMessage(taggedMessage, sendOpts);
         } catch (err) {
           ctx.ui.notify(
@@ -327,8 +333,8 @@ export default function (pi: ExtensionAPI): void {
           "                              Configure WhatsApp (scan QR)",
           "/msg-bridge widget            Toggle status widget on/off",
           "",
-          "While pi is busy, remote messages queue for after the current turn.",
-          "Prefix with /now to abort the in-flight turn, then send your message.",
+          "While pi is busy: plain text queues (followUp). /steer = next LLM step",
+          "after tools (Pi steer). /now or /abort = stop current run, then send.",
           "",
           "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
         ];

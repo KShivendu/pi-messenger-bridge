@@ -1,29 +1,39 @@
-const NOW_DIRECTIVE = /^\/now(\s|$)/i;
+const INTERRUPT_RE = /^\/(?:now|abort)(\s|$)/i;
+const STEER_RE = /^\/steer(\s|$)/i;
+
+/** How a messenger line should be delivered when pi is busy. */
+export type RemoteDeliveryMode = "queue" | "steer" | "interrupt";
 
 export interface ParsedRemoteMessengerBody {
-  /** Text to forward to pi (after stripping `/now` when present). */
+  /** Text to forward to pi (prefix stripped when a mode keyword was used). */
   body: string;
-  /**
-   * User prefixed with `/now`: abort the in-flight agent turn before delivering
-   * this message. (This is not the same as Pi's `deliverAs: "steer"`, which only
-   * queues user text for the next LLM step after tool calls, without aborting.)
-   */
-  interrupt: boolean;
+  mode: RemoteDeliveryMode;
+}
+
+function stripDirective(
+  trimmed: string,
+  re: RegExp,
+  mode: "interrupt" | "steer",
+  emptyLabel: string
+): ParsedRemoteMessengerBody {
+  const rest = trimmed.replace(re, "").trimStart();
+  return { body: rest.length > 0 ? rest : emptyLabel, mode };
 }
 
 /**
- * If the remote message begins with `/now` (after leading whitespace), strip it
- * and set {@link ParsedRemoteMessengerBody.interrupt}. Otherwise return the
- * original string unchanged.
+ * Detects an optional leading directive (after whitespace):
+ *
+ * - **`/now` or `/abort`** — interrupt: caller should abort the run, then send.
+ * - **`/steer`** — Pi `deliverAs: "steer"`: queue for the next LLM step after tools.
+ * - **otherwise** — queue (`followUp`) when pi is busy (default).
  */
 export function parseRemoteMessengerBody(raw: string): ParsedRemoteMessengerBody {
   const trimmed = raw.trimStart();
-  if (!NOW_DIRECTIVE.test(trimmed)) {
-    return { body: raw, interrupt: false };
+  if (INTERRUPT_RE.test(trimmed)) {
+    return stripDirective(trimmed, INTERRUPT_RE, "interrupt", "(empty message after /now or /abort)");
   }
-  let rest = trimmed.replace(NOW_DIRECTIVE, "").trimStart();
-  if (rest.length === 0) {
-    rest = "(empty message after /now)";
+  if (STEER_RE.test(trimmed)) {
+    return stripDirective(trimmed, STEER_RE, "steer", "(empty message after /steer)");
   }
-  return { body: rest, interrupt: true };
+  return { body: raw, mode: "queue" };
 }
