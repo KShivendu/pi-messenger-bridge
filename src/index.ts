@@ -17,6 +17,27 @@ import type { PendingRemoteChat, TransportStatus } from "./types.js";
 import { openMainMenu } from "./ui/main-menu.js";
 import { createStatusWidget } from "./ui/status-widget.js";
 
+async function sleepMs(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * `ExtensionContext` from event handlers has `abort()` / `isIdle()` but not `waitForIdle()`
+ * (that exists only on `ExtensionCommandContext`). Poll after abort until safe to prompt.
+ */
+async function waitUntilAgentIdle(
+  isIdle: () => boolean,
+  timeoutMs = 120_000
+): Promise<void> {
+  const start = Date.now();
+  while (!isIdle()) {
+    if (Date.now() - start > timeoutMs) {
+      throw new Error(`Timed out after ${timeoutMs}ms waiting for agent to become idle`);
+    }
+    await sleepMs(50);
+  }
+}
+
 /**
  * pi-remote-pilot extension
  * Bridges messenger apps (Telegram, WhatsApp, Slack, Discord) into pi
@@ -174,16 +195,26 @@ export default function (pi: ExtensionAPI): void {
         messageId: msg.messageId,
       };
 
-      const { body, steer } = parseRemoteMessengerBody(msg.content);
+      const { body, interrupt } = parseRemoteMessengerBody(msg.content);
       const taggedMessage = `[📱 @${msg.username} via ${msg.transport}]: ${body}`;
 
-      let sendOpts: { deliverAs: "steer" | "followUp" } | undefined;
-      if (steer) {
-        sendOpts = { deliverAs: "steer" };
-      } else if (!ctx.isIdle()) {
-        sendOpts = { deliverAs: "followUp" };
-      }
-      pi.sendUserMessage(taggedMessage, sendOpts);
+      void (async () => {
+        try {
+          if (interrupt && !ctx.isIdle()) {
+            ctx.abort();
+            await waitUntilAgentIdle(() => ctx.isIdle());
+          }
+          const sendOpts = !ctx.isIdle()
+            ? { deliverAs: "followUp" as const }
+            : undefined;
+          pi.sendUserMessage(taggedMessage, sendOpts);
+        } catch (err) {
+          ctx.ui.notify(
+            `msg-bridge: could not deliver message: ${(err as Error).message}`,
+            "error"
+          );
+        }
+      })();
     });
 
     transportManager.onError((err, transport) => {
@@ -296,8 +327,8 @@ export default function (pi: ExtensionAPI): void {
           "                              Configure WhatsApp (scan QR)",
           "/msg-bridge widget            Toggle status widget on/off",
           "",
-          "Remote messages queue while pi is busy. Start a message with /now",
-          "to steer (interrupt the current run) instead of queueing.",
+          "While pi is busy, remote messages queue for after the current turn.",
+          "Prefix with /now to abort the in-flight turn, then send your message.",
           "",
           "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
         ];

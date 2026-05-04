@@ -3,24 +3,27 @@ const NOW_DIRECTIVE = /^\/now(\s|$)/i;
 export interface ParsedRemoteMessengerBody {
   /** Text to forward to pi (after stripping `/now` when present). */
   body: string;
-  /** User asked to steer (interrupt current run) instead of queueing. */
-  steer: boolean;
+  /**
+   * User prefixed with `/now`: abort the in-flight agent turn before delivering
+   * this message. (This is not the same as Pi's `deliverAs: "steer"`, which only
+   * queues user text for the next LLM step after tool calls, without aborting.)
+   */
+  interrupt: boolean;
 }
 
 /**
  * If the remote message begins with `/now` (after leading whitespace), strip it
- * and mark the message for Pi `sendUserMessage(..., { deliverAs: "steer" })`.
- * Otherwise return the
- * original string unchanged for queue-as-follow-up when pi is busy.
+ * and set {@link ParsedRemoteMessengerBody.interrupt}. Otherwise return the
+ * original string unchanged.
  */
 export function parseRemoteMessengerBody(raw: string): ParsedRemoteMessengerBody {
   const trimmed = raw.trimStart();
   if (!NOW_DIRECTIVE.test(trimmed)) {
-    return { body: raw, steer: false };
+    return { body: raw, interrupt: false };
   }
   let rest = trimmed.replace(NOW_DIRECTIVE, "").trimStart();
   if (rest.length === 0) {
     rest = "(empty message after /now)";
   }
-  return { body: rest, steer: true };
+  return { body: rest, interrupt: true };
 }
