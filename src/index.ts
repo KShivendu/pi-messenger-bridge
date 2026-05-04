@@ -7,6 +7,7 @@ import { ChallengeAuth } from "./auth/challenge-auth.js";
 import { loadConfig, saveConfig } from "./config.js";
 import { extractTextFromMessage, formatToolCalls, hasToolCalls, splitMessage } from "./formatting.js";
 import { acquireLock, releaseLock } from "./lock.js";
+import { parseRemoteMessengerBody } from "./remote-prompt.js";
 import { DiscordProvider } from "./transports/discord.js";
 import { TransportManager } from "./transports/manager.js";
 import { SlackProvider } from "./transports/slack.js";
@@ -173,8 +174,16 @@ export default function (pi: ExtensionAPI): void {
         messageId: msg.messageId,
       };
 
-      const taggedMessage = `[📱 @${msg.username} via ${msg.transport}]: ${msg.content}`;
-      pi.sendUserMessage(taggedMessage);
+      const { body, steer } = parseRemoteMessengerBody(msg.content);
+      const taggedMessage = `[📱 @${msg.username} via ${msg.transport}]: ${body}`;
+
+      let sendOpts: { deliverAs: "steer" | "followUp" } | undefined;
+      if (steer) {
+        sendOpts = { deliverAs: "steer" };
+      } else if (!ctx.isIdle()) {
+        sendOpts = { deliverAs: "followUp" };
+      }
+      pi.sendUserMessage(taggedMessage, sendOpts);
     });
 
     transportManager.onError((err, transport) => {
@@ -286,6 +295,9 @@ export default function (pi: ExtensionAPI): void {
           "/msg-bridge configure whatsapp",
           "                              Configure WhatsApp (scan QR)",
           "/msg-bridge widget            Toggle status widget on/off",
+          "",
+          "Remote messages queue while pi is busy. Start a message with /now",
+          "to steer (interrupt the current run) instead of queueing.",
           "",
           "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
         ];
